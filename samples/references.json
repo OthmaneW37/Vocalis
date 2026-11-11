@@ -1,0 +1,5 @@
+{
+  "exemple_fr.wav": "Bonjour à tous. Aujourd'hui, nous allons voir comment un ordinateur peut transformer la voix en texte grâce à la reconnaissance vocale.",
+  "exemple_fr_bruit.wav": "Bonjour à tous. Aujourd'hui, nous allons voir comment un ordinateur peut transformer la voix en texte grâce à la reconnaissance vocale.",
+  "exemple_en.wav": "Speech recognition converts spoken language into written text. Modern systems use deep neural networks trained on thousands of hours of audio."
+}
