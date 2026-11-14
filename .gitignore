@@ -12,3 +12,10 @@ __pycache__/
 .claude/
 .vscode/
 .idea/
+
+# Données et modèles
+donnees/
+entrainements/
+*.pt
+build/
+dist/

@@ -4,8 +4,7 @@ import librosa
 import numpy as np
 import soundfile as sf
 
-# Whisper attend du mono à 16 kHz : la parole utile est sous 8 kHz (Nyquist).
-SR = 16000
+from .audio_base import SR  # 16 kHz mono, constante partagée avec l'app
 
 
 def infos_fichier(chemin: str) -> dict:
