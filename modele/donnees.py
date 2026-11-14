@@ -48,10 +48,11 @@ def ecrire_manifeste(chemin, exemples: list[Exemple]) -> None:
         sortie = csv.writer(f, delimiter="\t")
         sortie.writerow(["chemin", "duree", "texte"])
         for e in exemples:
+            audio = Path(e.chemin).resolve()
             try:
-                relatif = Path(e.chemin).relative_to(chemin.parent).as_posix()
+                relatif = audio.relative_to(chemin.parent.resolve()).as_posix()
             except ValueError:
-                relatif = str(e.chemin)
+                relatif = str(audio)        # hors du dossier du manifeste : chemin absolu
             sortie.writerow([relatif, f"{e.duree:.2f}", e.texte])
 
 

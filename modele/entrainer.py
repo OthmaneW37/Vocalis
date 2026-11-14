@@ -54,7 +54,8 @@ def perte_ctc(log_probas, longueurs, cibles, longueurs_cibles) -> torch.Tensor:
 
 def entrainer(donnees, sortie, taille: str = "moyen", epoques: int = 60,
               secondes_par_lot: float = 160.0, lr: float = 1e-3, montee: int = 10_000,
-              eval_tous_les: int = 2000, pas_max: int | None = None,
+              eval_tous_les: int = 2000, sauver_tous_les: int = 250,
+              pas_max: int | None = None,
               reprendre: bool = False, appareil: str | None = None,
               travailleurs: int = 4, taille_vocab: int = 500, limite_dev: int = 400,
               config: ConfigModele | None = None, journal=print) -> dict:
@@ -63,6 +64,8 @@ def entrainer(donnees, sortie, taille: str = "moyen", epoques: int = 60,
     appareil = choisir_appareil(appareil)
     exemples = lire_manifeste(donnees / "train.tsv")
     dev = lire_manifeste(donnees / "dev.tsv")[:limite_dev]
+    if not exemples:
+        raise ValueError(f"Aucun énoncé utilisable dans {donnees / 'train.tsv'}")
 
     chemin_vocab = sortie / "tokenizer.json"
     if chemin_vocab.exists():
@@ -115,8 +118,10 @@ def entrainer(donnees, sortie, taille: str = "moyen", epoques: int = 60,
             sauver(sortie / "meilleur.pt")
         sauver(dernier)
 
+    # Graine liée au pas : après une reprise, l'ordre des lots change, ce qui évite
+    # de retomber indéfiniment sur le même lot si l'un d'eux fait planter le GPU.
     echantillonneur = EchantillonneurParDuree([e.duree for e in exemples], secondes_par_lot,
-                                              graine=etat["epoque"])
+                                              graine=etat["pas"])
     chargeur = DataLoader(JeuAudio(exemples, tokenizer), batch_sampler=echantillonneur,
                           collate_fn=assembler, num_workers=travailleurs,
                           persistent_workers=travailleurs > 0)
@@ -143,6 +148,8 @@ def entrainer(donnees, sortie, taille: str = "moyen", epoques: int = 60,
             if etat["pas"] % 100 == 0:
                 journal(f"pas {etat['pas']:>7} · perte {cumul / nb:.3f} · "
                         f"{(time.perf_counter() - debut) / nb:.2f} s/pas")
+            if etat["pas"] % sauver_tous_les == 0:
+                sauver(dernier)
             if etat["pas"] % eval_tous_les == 0:
                 evaluer_et_sauver(cumul / nb)
                 cumul, nb, debut = 0.0, 0, time.perf_counter()
@@ -166,6 +173,7 @@ def main(arguments=None) -> None:
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--montee", type=int, default=10_000)
     p.add_argument("--eval-tous-les", type=int, default=2000)
+    p.add_argument("--sauver-tous-les", type=int, default=250)
     p.add_argument("--pas-max", type=int)
     p.add_argument("--travailleurs", type=int, default=4)
     p.add_argument("--appareil", default="auto", help="auto, cpu, cuda ou directml")

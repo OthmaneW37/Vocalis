@@ -21,3 +21,4 @@ build/
 dist/
 .venv-gpu/
 donnees_essai/
+donnees_preparation.log

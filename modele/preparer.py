@@ -26,39 +26,74 @@ def _garder(duree: float, texte: str) -> bool:
     return DUREE_MIN_S <= duree <= DUREE_MAX_S and bool(normaliser_texte(texte))
 
 
-def depuis_mls(sortie: Path, heures: dict[str, float], journal=print) -> None:
+HEURES_MLS = {"train": 1076.0, "dev": 10.0, "test": 10.0}    # tailles du corpus français
+
+
+def _fragments_mls(partie: str) -> list[str]:
+    from huggingface_hub import HfApi
+
+    fichiers = HfApi().list_repo_files("facebook/multilingual_librispeech",
+                                       repo_type="dataset")
+    return sorted(f for f in fichiers if f.startswith(f"french/{partie}-")
+                  and f.endswith(".parquet"))
+
+
+def _extraire_fragment(fragment: str, numero: int, dossier: Path, pas: int,
+                       quota_s: float) -> list[Exemple]:
+    """Parcourt un fichier du corpus en flux et garde un énoncé sur `pas`.
+
+    Les énoncés sont rangés locuteur par locuteur : en piocher un sur `pas` dans
+    tout le fichier donne beaucoup plus de voix différentes que d'en prendre le début.
+    """
     import soundfile as sf
     from datasets import Audio, load_dataset
 
-    for partie, nom in (("train", "train"), ("dev", "dev"), ("test", "test")):
-        flux = load_dataset("facebook/multilingual_librispeech", "french",
-                            split=nom, streaming=True)
-        flux = flux.cast_column("audio", Audio(decode=False))
-        if partie == "train":           # mélange des livres : plus de locuteurs différents
-            flux = flux.shuffle(seed=0, buffer_size=2000)
+    flux = load_dataset("facebook/multilingual_librispeech",
+                        data_files={"x": [fragment]}, split="x", streaming=True)
+    flux = flux.cast_column("audio", Audio(decode=False))
+    exemples, total = [], 0.0
+    for i, ligne in enumerate(flux):
+        if i % pas:
+            continue
+        octets = ligne["audio"]["bytes"]
+        texte = ligne.get("transcript") or ligne.get("text") or ""
+        duree = ligne.get("audio_duration")
+        if duree is None:
+            infos = sf.info(io.BytesIO(octets))
+            duree = infos.frames / infos.samplerate
+        if not _garder(float(duree), texte):
+            continue
+        extension = Path(ligne["audio"].get("path") or "x.opus").suffix or ".opus"
+        fichier = dossier / f"f{numero:02d}_{i:06d}{extension}"
+        fichier.write_bytes(octets)
+        exemples.append(Exemple(fichier, float(duree), normaliser_texte(texte)))
+        total += float(duree)
+        if total >= quota_s:
+            break
+    return exemples
+
+
+def depuis_mls(sortie: Path, heures: dict[str, float], journal=print,
+               paralleles: int = 4) -> None:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    for partie in ("dev", "test", "train"):
+        fragments = _fragments_mls(partie)
         dossier = sortie / "audio" / partie
         dossier.mkdir(parents=True, exist_ok=True)
-        exemples, total, cible = [], 0.0, heures[partie] * 3600
-        for i, ligne in enumerate(flux):
-            octets = ligne["audio"]["bytes"]
-            texte = ligne.get("transcript") or ligne.get("text") or ""
-            duree = ligne.get("audio_duration")
-            if duree is None:
-                infos = sf.info(io.BytesIO(octets))
-                duree = infos.frames / infos.samplerate
-            if not _garder(float(duree), texte):
-                continue
-            extension = Path(ligne["audio"].get("path") or "x.opus").suffix or ".opus"
-            fichier = dossier / f"{partie}_{i:07d}{extension}"
-            fichier.write_bytes(octets)
-            exemples.append(Exemple(fichier, float(duree), normaliser_texte(texte)))
-            total += float(duree)
-            if len(exemples) % 500 == 0:
-                journal(f"{partie} : {total / 3600:.1f} h / {heures[partie]:.1f} h")
-            if total >= cible:
-                break
-        ecrire_manifeste(sortie / f"{partie}.tsv", exemples)
-        journal(f"{partie}.tsv : {len(exemples)} énoncés, {total / 3600:.2f} h")
+        pas = max(1, int(HEURES_MLS[partie] / heures[partie]))
+        quota_s = heures[partie] * 3600 / len(fragments)
+        exemples = []
+        with ThreadPoolExecutor(paralleles) as groupe:
+            taches = [groupe.submit(_extraire_fragment, f, n, dossier, pas, quota_s)
+                      for n, f in enumerate(fragments)]
+            for faites, tache in enumerate(as_completed(taches), 1):
+                exemples += tache.result()
+                ecrire_manifeste(sortie / f"{partie}.tsv", sorted(exemples, key=lambda e: e.chemin))
+                journal(f"{partie} : fichier {faites}/{len(fragments)} · "
+                        f"{sum(e.duree for e in exemples) / 3600:.1f} h", flush=True)
+        journal(f"{partie}.tsv : {len(exemples)} énoncés, "
+                f"{sum(e.duree for e in exemples) / 3600:.2f} h", flush=True)
 
 
 def depuis_common_voice(dossier: Path, sortie: Path, heures: dict[str, float],
