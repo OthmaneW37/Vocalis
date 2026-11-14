@@ -239,3 +239,15 @@ Prérequis qui dépendent d'Othmane : ~15 Go de disque libérés, conditions de 
 - [ ] Tests : avec un mini-checkpoint produit par la tâche 14, `transcrire` rend un `Resultat` ; audio vide → `texte == ""`.
 - [ ] Copier le checkpoint entraîné vers `CHECKPOINT_DEFAUT`, vérifier la dictée avec le moteur Maison dans l'app.
 - [ ] README : tableau WER / CER / vitesse, Maison contre Whisper, sur le jeu de test et sur `samples/`.
+
+---
+
+## Écarts constatés pendant l'exécution
+
+- **Données** : Multilingual LibriSpeech français en flux (`--source mls`) remplace Common Voice par défaut. Raisons : pas de conditions à accepter, 100 h ≈ 1,7 Go en Opus contre une archive Common Voice de plusieurs dizaines de Go, trop grosse pour le disque. Un dossier Common Voice déjà extrait reste utilisable (`--source dossier`).
+- **Tailles du modèle** : `moyen` = d 256, 16 couches (26,3 M de paramètres mesurés) ; `petit` = d 144, 16 couches (8,4 M).
+- **Log-Mel** : même mise à l'échelle que `stt.features.log_mel`, sans normalisation par bande ; calculé sur CPU dans le chargeur de données pour ne pas dépendre du GPU.
+- **Positions relatives** : par rotation (RoPE) plutôt que le décalage de Transformer-XL.
+- **Non fait** : moyenne des meilleurs checkpoints, choix du moteur dans la démo Gradio `app.py`, empaquetage PyInstaller, entraînement réel (tâches 9, 14 et 15 pour la partie mesure).
+- **Interface** : une seule fenêtre à onglets (`vocalis/ui/fenetre.py`) au lieu de trois fenêtres ; le câblage est dans `vocalis/app.py`.
+- **Transcription en arrière-plan** : `threading.Thread` + signal Qt au lieu d'un `QThread`.

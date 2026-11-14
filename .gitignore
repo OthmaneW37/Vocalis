@@ -19,3 +19,5 @@ entrainements/
 *.pt
 build/
 dist/
+.venv-gpu/
+donnees_essai/
