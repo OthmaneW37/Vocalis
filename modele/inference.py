@@ -14,11 +14,31 @@ TRANCHE_MAX_S = 20.0        # durée maximale passée au modèle en une fois
 RECHERCHE_S = 5.0           # on cherche le creux d'énergie dans les 5 dernières secondes
 
 
+def _sur_cpu(objet):
+    """Copie récursive avec tous les tenseurs ramenés sur CPU.
+
+    Un tenseur sauvegardé depuis un GPU DirectML ne se recharge pas ailleurs.
+    """
+    if isinstance(objet, torch.Tensor):
+        return objet.detach().cpu()
+    if isinstance(objet, dict):
+        return {cle: _sur_cpu(valeur) for cle, valeur in objet.items()}
+    if isinstance(objet, (list, tuple)):
+        return type(objet)(_sur_cpu(valeur) for valeur in objet)
+    return objet
+
+
 def sauver_checkpoint(chemin, modele: Conformer, tokenizer: TokenizerBPE, **infos) -> None:
-    """Écrit un checkpoint autonome : configuration, vocabulaire et poids."""
-    torch.save({"config": modele.config.vers_dict(),
-                "fusions": [list(f) for f in tokenizer.fusions],
-                "poids": modele.state_dict(), **infos}, str(chemin))
+    """Écrit un checkpoint autonome : configuration, vocabulaire et poids.
+
+    L'écriture passe par un fichier temporaire : une coupure pendant la
+    sauvegarde ne détruit pas le checkpoint précédent.
+    """
+    temporaire = Path(str(chemin) + ".tmp")
+    torch.save(_sur_cpu({"config": modele.config.vers_dict(),
+                         "fusions": [list(f) for f in tokenizer.fusions],
+                         "poids": modele.state_dict(), **infos}), str(temporaire))
+    temporaire.replace(chemin)
 
 
 def charger_checkpoint(chemin, appareil="cpu"):
