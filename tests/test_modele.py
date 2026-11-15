@@ -215,6 +215,7 @@ def test_entrainement_reprise_evaluation_et_moteur(mini_corpus, tmp_path):
     sortie = tmp_path / "run"
     options = dict(donnees=mini_corpus, sortie=sortie, secondes_par_lot=4.0, lr=2e-3,
                    montee=20, eval_tous_les=60, travailleurs=0, taille_vocab=60,
+                   amorce_enonces=4, amorce_pas=30,
                    appareil="cpu", journal=lambda *_: None,
                    config=ConfigModele(d=64, couches=2, dropout=0.0, taille_vocab=60))
     etat = entrainer(pas_max=120, epoques=1000, **options)

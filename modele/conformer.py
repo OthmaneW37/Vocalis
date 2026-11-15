@@ -154,14 +154,25 @@ class Conformer(nn.Module):
         self.blocs = nn.ModuleList(BlocConformer(config) for _ in range(config.couches))
         self.tete = nn.Linear(config.d, config.taille_vocab)
 
-    def forward(self, mel: torch.Tensor, longueurs: torch.Tensor):
-        """mel [B, 80, T], longueurs [B] (en trames) → (log-probas [B, T/4, vocab], longueurs)."""
+    def forward(self, mel: torch.Tensor, longueurs: torch.Tensor, intermediaire: bool = False):
+        """mel [B, 80, T], longueurs [B] (en trames) → (log-probas [B, T/4, vocab], longueurs).
+
+        Avec `intermediaire=True`, rend aussi les log-probas lues à mi-profondeur
+        par la même tête : une perte CTC auxiliaire à cet endroit (« InterCTC »)
+        aide les encodeurs profonds à sortir du palier de début d'entraînement.
+        """
         x = self.dropout(self.entree(mel))
         longueurs = longueurs_sorties(longueurs).clamp_max(x.shape[1])
         masque = torch.arange(x.shape[1], device=x.device)[None, :] < longueurs[:, None]
-        for bloc in self.blocs:
+        milieu = None
+        for i, bloc in enumerate(self.blocs, 1):
             x = bloc(x, masque)
-        return self.tete(x).log_softmax(dim=-1), longueurs
+            if intermediaire and i == len(self.blocs) // 2:
+                milieu = self.tete(x).log_softmax(dim=-1)
+        finales = self.tete(x).log_softmax(dim=-1)
+        if intermediaire:
+            return finales, longueurs, (milieu if milieu is not None else finales)
+        return finales, longueurs
 
     def nb_parametres(self) -> int:
         return sum(p.numel() for p in self.parameters())

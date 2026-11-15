@@ -58,7 +58,10 @@ def entrainer(donnees, sortie, taille: str = "moyen", epoques: int = 60,
               pas_max: int | None = None,
               reprendre: bool = False, appareil: str | None = None,
               travailleurs: int = 4, taille_vocab: int = 500, limite_dev: int = 400,
-              config: ConfigModele | None = None, journal=print) -> dict:
+              config: ConfigModele | None = None, augmenter: bool = True,
+              debut_augmentation: int = 0, poids_intermediaire: float = 0.3,
+              amorce_enonces: int = 0, amorce_pas: int = 0,
+              journal=print) -> dict:
     donnees, sortie = Path(donnees), Path(sortie)
     sortie.mkdir(parents=True, exist_ok=True)
     appareil = choisir_appareil(appareil)
@@ -118,46 +121,70 @@ def entrainer(donnees, sortie, taille: str = "moyen", epoques: int = 60,
             sauver(sortie / "meilleur.pt")
         sauver(dernier)
 
-    # Graine liée au pas : après une reprise, l'ordre des lots change, ce qui évite
-    # de retomber indéfiniment sur le même lot si l'un d'eux fait planter le GPU.
-    echantillonneur = EchantillonneurParDuree([e.duree for e in exemples], secondes_par_lot,
-                                              graine=etat["pas"])
-    chargeur = DataLoader(JeuAudio(exemples, tokenizer), batch_sampler=echantillonneur,
+    def chargeur_de(liste, graine):
+        echantillonneur = EchantillonneurParDuree([e.duree for e in liste], secondes_par_lot,
+                                                  graine=graine)
+        return DataLoader(JeuAudio(liste, tokenizer), batch_sampler=echantillonneur,
                           collate_fn=assembler, num_workers=travailleurs,
                           persistent_workers=travailleurs > 0)
+
+    def lots():
+        """Enchaîne la phase d'amorçage puis les passages sur toutes les données."""
+        if amorce_enonces and etat["pas"] < amorce_pas:
+            # Amorçage : un petit sous-ensemble vu en boucle. Une CTC entraînée de zéro
+            # reste sinon bloquée sur un palier où elle ignore l'audio ; mémoriser
+            # quelques centaines d'énoncés lui apprend d'abord à aligner son et texte.
+            import random
+            petit = random.Random(0).sample(exemples, min(amorce_enonces, len(exemples)))
+            journal(f"Amorçage sur {len(petit)} énoncés jusqu'au pas {amorce_pas}")
+            chargeur = chargeur_de(petit, 0)
+            while etat["pas"] < amorce_pas:
+                for lot in chargeur:
+                    yield lot
+                    if etat["pas"] >= amorce_pas:
+                        break
+            del chargeur
+        # Graine liée au pas : après une reprise, l'ordre des lots change, ce qui évite
+        # de retomber indéfiniment sur le même lot si l'un d'eux fait planter le GPU.
+        chargeur = chargeur_de(exemples, etat["pas"])
+        while etat["epoque"] < epoques:
+            yield from chargeur
+            etat["epoque"] += 1
+
     cumul, nb, debut = 0.0, 0, time.perf_counter()
-    fini = False
     modele.train()
     augmentation.train()
-    while etat["epoque"] < epoques and not fini:
-        for mels, longueurs, cibles, longueurs_cibles in chargeur:
-            etat["pas"] += 1
-            for groupe in optimiseur.param_groups:
-                groupe["lr"] = taux_apprentissage(etat["pas"], lr, montee)
-            mels = augmentation(mels, longueurs).to(appareil)
-            with torch.autocast("cuda", enabled=precision_mixte):
-                log_probas, longueurs_sortie = modele(mels, longueurs.to(appareil))
-            perte = perte_ctc(log_probas, longueurs_sortie, cibles, longueurs_cibles)
-            optimiseur.zero_grad(set_to_none=True)
-            echelle.scale(perte).backward()
-            echelle.unscale_(optimiseur)
-            torch.nn.utils.clip_grad_norm_(modele.parameters(), 5.0)
-            echelle.step(optimiseur)
-            echelle.update()
-            cumul, nb = cumul + perte.item(), nb + 1
-            if etat["pas"] % 100 == 0:
-                journal(f"pas {etat['pas']:>7} · perte {cumul / nb:.3f} · "
-                        f"{(time.perf_counter() - debut) / nb:.2f} s/pas")
-            if etat["pas"] % sauver_tous_les == 0:
-                sauver(dernier)
-            if etat["pas"] % eval_tous_les == 0:
-                evaluer_et_sauver(cumul / nb)
-                cumul, nb, debut = 0.0, 0, time.perf_counter()
-            if pas_max is not None and etat["pas"] >= pas_max:
-                fini = True
-                break
-        else:
-            etat["epoque"] += 1
+    for mels, longueurs, cibles, longueurs_cibles in lots():
+        etat["pas"] += 1
+        for groupe in optimiseur.param_groups:
+            groupe["lr"] = taux_apprentissage(etat["pas"], lr, montee)
+        if augmenter and etat["pas"] > debut_augmentation:
+            mels = augmentation(mels, longueurs)
+        mels = mels.to(appareil)
+        with torch.autocast("cuda", enabled=precision_mixte):
+            log_probas, longueurs_sortie, milieu = modele(mels, longueurs.to(appareil),
+                                                          intermediaire=True)
+        perte = perte_ctc(log_probas, longueurs_sortie, cibles, longueurs_cibles)
+        if poids_intermediaire:
+            perte = ((1 - poids_intermediaire) * perte + poids_intermediaire
+                     * perte_ctc(milieu, longueurs_sortie, cibles, longueurs_cibles))
+        optimiseur.zero_grad(set_to_none=True)
+        echelle.scale(perte).backward()
+        echelle.unscale_(optimiseur)
+        torch.nn.utils.clip_grad_norm_(modele.parameters(), 5.0)
+        echelle.step(optimiseur)
+        echelle.update()
+        cumul, nb = cumul + perte.item(), nb + 1
+        if etat["pas"] % 100 == 0:
+            journal(f"pas {etat['pas']:>7} · perte {cumul / nb:.3f} · "
+                    f"{(time.perf_counter() - debut) / nb:.2f} s/pas")
+        if etat["pas"] % sauver_tous_les == 0:
+            sauver(dernier)
+        if etat["pas"] % eval_tous_les == 0:
+            evaluer_et_sauver(cumul / nb)
+            cumul, nb, debut = 0.0, 0, time.perf_counter()
+        if pas_max is not None and etat["pas"] >= pas_max:
+            break
     if nb:                      # des pas ont eu lieu depuis la dernière évaluation
         evaluer_et_sauver(cumul / nb)
     return {**etat, "sortie": sortie, "parametres": modele.nb_parametres()}
@@ -174,6 +201,12 @@ def main(arguments=None) -> None:
     p.add_argument("--montee", type=int, default=10_000)
     p.add_argument("--eval-tous-les", type=int, default=2000)
     p.add_argument("--sauver-tous-les", type=int, default=250)
+    p.add_argument("--debut-augmentation", type=int, default=0,
+                   help="n'appliquer SpecAugment qu'après ce nombre de pas")
+    p.add_argument("--poids-intermediaire", type=float, default=0.3)
+    p.add_argument("--amorce-enonces", type=int, default=0,
+                   help="taille du sous-ensemble vu en boucle au début (0 = pas d'amorçage)")
+    p.add_argument("--amorce-pas", type=int, default=0, help="durée de l'amorçage, en pas")
     p.add_argument("--pas-max", type=int)
     p.add_argument("--travailleurs", type=int, default=4)
     p.add_argument("--appareil", default="auto", help="auto, cpu, cuda ou directml")
