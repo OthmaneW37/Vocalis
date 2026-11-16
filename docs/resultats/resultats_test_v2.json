@@ -1,0 +1,59 @@
+{
+  "manifeste": "donnees\\test.tsv",
+  "heures": 2.00005,
+  "pas": 90000,
+  "parametres": 8389364,
+  "maison": {
+    "wer": 0.264934644053149,
+    "cer": 0.11214944377301751,
+    "n": 485,
+    "exemples": [
+      [
+        "mais ce que je sais bien c'est qu'être injuste et désobéir à ce qui est meilleur que soi dieu ou homme est contraire au devoir et à l'honneur",
+        "mais ce que je sais bien c'est qu're injuste et désobir à ce qui est meilleur que soit dieu ouom les contraire au devoirs elle honneur"
+      ],
+      [
+        "eux paraissaient se chérir ne se quittaient point or un soir julien m'écrivit de venir dîner j'y allai",
+        "eux paraissait se chérir ne se quittait point or un soir julien m'écrivit de venir dîner j'y allai"
+      ],
+      [
+        "parce qu'elle ne faisait pas son métier avec assez d'adresse il est possible que ce ne fût qu'un enfant et alors la mère est plus coupable encore",
+        "parce qu'elle ne faisait pas son métier avec assez d'adresse il est possible que s'il ne fût qu'un enfant alors la mère et plus coupable encore"
+      ],
+      [
+        "sire le pêcheur n'eut pas sitôt entendu les paroles que le génie avait prononcées qu'il se rassura et lui dit esprit superbe que dites-vous",
+        "c'estre le pêcheur dut passiton entendu les paroles que le génie avait prononcé qu'il se rceva et lui dit esprit superbe que dites-vous"
+      ],
+      [
+        "la provision de farine réunie à celles des boulangers était de plus de cinq cents mille quintaux il y en avait environ cent mille de riz",
+        "la provision de farine réunie à celle des boulangers étaient de plus de cinq cents mille quaux il y en avait environ cent mil de ri"
+      ],
+      [
+        "un moment après il se leva lui-même étant inquiet de ce qu'il lui semblait avoir ouï marcher quelqu'un et s'en vint droit à l'appartement de la princesse sa femme qui répondait sur le pont",
+        "un moment après il se leva du même étant ininqué de ce qui lui semblait avoir oui marché quelqu'un et son in droit à l'appartement de la princesse sa femme qui répondait sur le pont"
+      ],
+      [
+        "non non dit le génie en persistant dans sa résolution il faut que je te tue de même que tu as tué mon fils",
+        "non non dit la génie en persistant dans sa résolution qu'il faut que je t'e tu de même que tu as tué mon fils"
+      ],
+      [
+        "mais je comptais sans une rencontre qui retarda quelque peu notre arrivée j'étais resté d'une vingtaine de pas en arrière lorsque je vis le capitaine nemo revenir brusquement vers moi",
+        "mais je comptais sans une ren roudtre qui re regardara quelque peut noêtre arrivée j'ais resté d'une vinaine de pas en arrière lorsque je vis le capitaine nemo revenir brusquement vers moi"
+      ],
+      [
+        "sa place est depuis longtemps marquée à l'endroit où l'on remarque une potence en fer à laquelle sont suspendus des chaînes et des carcans",
+        "sa pl asse depuis longtempsbarqué àonsendroit le remar qu'une protence en fer à laquelle sont suspendus d'chai des carcant"
+      ],
+      [
+        "il n'est meilleur ami ni parent que soi-même retenez bien cela mon fils et savez-vous ce qu'il faut faire",
+        "il n'est meilleure à millei par an que soi-même retenez bien cela mon fils et savez-vous ce qu'il faut faire"
+      ]
+    ],
+    "facteur_temps_reel": 0.005986568127463621
+  },
+  "whisper_small": {
+    "wer": 0.13719347520795075,
+    "cer": 0.056774168990226775,
+    "n": 485
+  }
+}

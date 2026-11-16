@@ -2,7 +2,6 @@
 
 import librosa
 import numpy as np
-from matplotlib.figure import Figure
 
 from .audio import SR
 
@@ -31,6 +30,8 @@ def log_mel(audio: np.ndarray, sr: int = SR, n_mels: int = N_MELS) -> np.ndarray
 
 def figure_signal(audio: np.ndarray, sr: int = SR, titre: str = ""):
     """Forme d'onde + spectrogramme log-Mel, alignés sur le même axe du temps."""
+    from matplotlib.figure import Figure   # import local : log_mel reste utilisable sans matplotlib
+
     duree = len(audio) / sr
     spec = log_mel(audio, sr)
     t = np.arange(len(audio)) / sr
