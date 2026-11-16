@@ -248,6 +248,7 @@ Prérequis qui dépendent d'Othmane : ~15 Go de disque libérés, conditions de 
 - **Tailles du modèle** : `moyen` = d 256, 16 couches (26,3 M de paramètres mesurés) ; `petit` = d 144, 16 couches (8,4 M).
 - **Log-Mel** : même mise à l'échelle que `stt.features.log_mel`, sans normalisation par bande ; calculé sur CPU dans le chargeur de données pour ne pas dépendre du GPU.
 - **Positions relatives** : par rotation (RoPE) plutôt que le décalage de Transformer-XL.
-- **Non fait** : moyenne des meilleurs checkpoints, choix du moteur dans la démo Gradio `app.py`, empaquetage PyInstaller, entraînement réel (tâches 9, 14 et 15 pour la partie mesure).
+- **Non fait** : moyenne des meilleurs checkpoints, choix du moteur dans la démo Gradio `app.py`, empaquetage PyInstaller.
+- **Entraînement réel fait le 15-16/11/2026** (tâches 9, 14, 15) : modèle `petit` sur DirectML, WER test 26,5 %, CER 11,2 % ; recette et chiffres dans le README, journal dans `docs/resultats/`.
 - **Interface** : une seule fenêtre à onglets (`vocalis/ui/fenetre.py`) au lieu de trois fenêtres ; le câblage est dans `vocalis/app.py`.
 - **Transcription en arrière-plan** : `threading.Thread` + signal Qt au lieu d'un `QThread`.

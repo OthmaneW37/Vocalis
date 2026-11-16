@@ -81,10 +81,30 @@ Pour utiliser le modèle dans l'app, copie `meilleur.pt` vers
 `%APPDATA%\Vocalis\modele_maison.pt`, puis choisis « Modèle maison » dans les réglages.
 Tant que ce fichier n'existe pas, l'app se replie sur Whisper et le dit.
 
-**État actuel : le modèle maison n'a pas encore été entraîné sur de vraies données.**
-Le code est vérifié par des tests (mémorisation d'un petit corpus, parité du log-Mel avec
-librosa, mini-entraînement avec reprise), mais aucun WER réel n'a été mesuré. Les tailles
-disponibles : `petit` (8,4 M de paramètres) et `moyen` (26,3 M).
+### Résultats mesurés
+
+Modèle `petit` (8,4 M de paramètres), entraîné de zéro sur 100 h pendant 40 passages
+(99 336 pas, environ 19 h sur une Radeon RX 9060 XT via DirectML). Mesure sur 2 h du jeu
+de test de Multilingual LibriSpeech français (485 énoncés jamais vus), décodage glouton,
+sans modèle de langue :
+
+| Moteur | Erreur sur les mots (WER) | Erreur sur les caractères (CER) |
+|---|---|---|
+| Modèle maison (`petit`) | 26,5 % | 11,2 % |
+| Whisper small | 13,7 % | 5,7 % |
+
+Le modèle maison fait donc environ deux fois plus d'erreurs que Whisper small, pour un
+modèle 29 fois plus petit et 6 800 fois moins de données. Il transcrit 9,4 s d'audio en
+0,06 s sur CPU. Sur `samples/exemple_fr.wav` (voix de synthèse, hors du domaine
+d'entraînement) : 13,6 % de WER ; sur la version bruitée : 54,5 %. Il ne produit ni
+majuscules ni ponctuation.
+
+La recette qui a marché (`entrainer_gpu.ps1`) : 3 500 pas d'amorçage sur 400 énoncés vus
+en boucle, perte CTC auxiliaire à mi-profondeur, taux d'apprentissage de crête 6e-4,
+SpecAugment à partir du pas 8 000. Sans l'amorçage, l'entraînement restait bloqué à
+100 % d'erreur. Un entraînement DirectML occupe environ 11,6 Go de mémoire vive : n'en
+lancer qu'un à la fois. La taille `moyen` (26,3 M de paramètres) n'a pas été entraînée.
+Le journal complet et les résultats bruts sont dans `docs/resultats/`.
 
 ## Tests
 
